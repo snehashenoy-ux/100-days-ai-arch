@@ -1,0 +1,5 @@
+ollama
+networkx
+matplotlib
+pydantic
+ipywidgets
