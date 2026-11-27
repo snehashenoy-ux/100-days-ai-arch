@@ -1,0 +1,9 @@
+torch
+transformers
+gradio
+plotly
+open3d
+pillow
+numpy
+matplotlib
+ipykernel
