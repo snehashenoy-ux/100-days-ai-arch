@@ -62,6 +62,10 @@ pip install -r requirements.txt
 ```
 Open the notebook, select the `.venv` kernel, set `PHOTO` to your image, and Run All. The last cell launches the app at http://127.0.0.1:7860.
 
+## Web version
+
+[`web/`](web/) is the same pipeline as a static website that runs fully in the browser: the model is converted to ONNX (fp16) and runs with WebGPU, and the cloud is drawn with Three.js. It's hosted on Cloudflare Pages. See [web/README.md](web/README.md).
+
 ## Next
 
 - Read the real focal length from the photo's EXIF instead of guessing the FOV

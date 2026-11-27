@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo to Point Cloud</title>
+<meta name="description" content="Turn one photo into a 3D point cloud in metres. Runs entirely in your browser with Depth Anything V2.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g fill='%23e55064'><circle cx='8' cy='22' r='3'/><circle cx='16' cy='12' r='3'/><circle cx='24' cy='18' r='3'/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" crossorigin>
+<style>
+  :root {
+    --bg: #f5f4f1; --panel: #ffffff; --ink: #1a1a1a; --muted: #6b6b6b;
+    --line: #e2e0db; --accent: #d9465f; --accent-ink: #ffffff; --view: #111114;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121214; --panel: #1b1b1f; --ink: #ecebe8; --muted: #9a9a9f;
+      --line: #2c2c31; --accent: #ef6077; --accent-ink: #121214; --view: #0b0b0d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121214; --panel: #1b1b1f; --ink: #ecebe8; --muted: #9a9a9f;
+    --line: #2c2c31; --accent: #ef6077; --accent-ink: #121214; --view: #0b0b0d;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 20px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .tag { color: var(--muted); font-size: 14px; }
+  .tag a { color: inherit; }
+  .grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 22px 12px; text-align: center; cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--ink); }
+  .drop strong { color: var(--ink); font-weight: 500; }
+  .thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .thumbs canvas { width: 100%; border-radius: 6px; background: var(--line); display: block; aspect-ratio: 4/3; object-fit: contain; }
+  .thumbs figure { margin: 0; }
+  .thumbs figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  label { display: block; font-size: 13px; font-weight: 500; }
+  label span { float: right; font-family: "JetBrains Mono", monospace; color: var(--muted); font-weight: 400; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 6px 0 2px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .controls > div:last-child .hint { margin-bottom: 0; }
+  button { font: inherit; font-size: 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--ink); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; width: 100%; }
+  button:disabled { opacity: .45; cursor: default; }
+  .status { font-size: 13px; color: var(--muted); min-height: 20px; }
+  .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .viewer { position: relative; background: var(--view); border-radius: 12px; overflow: hidden; min-height: 560px; }
+  @media (max-width: 860px) { .viewer { min-height: 420px; } }
+  .viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .views { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .views button { background: rgba(20,20,24,.7); color: #eee; border-color: rgba(255,255,255,.15); backdrop-filter: blur(6px); font-size: 13px; padding: 6px 10px; }
+  .views button:hover:not(:disabled) { border-color: #fff; }
+  .stats { position: absolute; bottom: 12px; left: 12px; right: 12px; color: #bbb; font: 12px "JetBrains Mono", monospace; pointer-events: none; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #777; text-align: center; padding: 24px; }
+  .about { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .about h3 { font-size: 14px; margin: 0 0 4px; }
+  .about p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font-family: "JetBrains Mono", monospace; font-size: 12.5px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.webgpu.min.mjs"
+} }
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Photo → Point Cloud</h1>
+    <div class="tag">Day 05 of <a href="https://github.com/snehashenoy-ux/100-days-ai-arch">100 Days of AI in Architecture</a> · runs on your device, photos never leave it</div>
+  </header>
+
+  <div class="grid">
+    <div class="side">
+      <div class="panel">
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a photo">
+          <strong>Drop a street photo</strong><br>or click to choose one
+          <input type="file" id="file" accept="image/*" hidden>
+        </div>
+        <div class="status" id="status" style="margin-top:10px">Loading model…</div>
+        <div class="bar"><i id="bar"></i></div>
+      </div>
+
+      <div class="panel thumbs" id="thumbs" hidden>
+        <figure><canvas id="photo"></canvas><figcaption>Photo</figcaption></figure>
+        <figure><canvas id="depthmap"></canvas><figcaption>Depth (bright = near)</figcaption></figure>
+      </div>
+
+      <div class="panel controls">
+        <div>
+          <label for="step">Point spacing <span id="stepV">2 px</span></label>
+          <input type="range" id="step" min="1" max="6" value="2">
+          <p class="hint">Use every n-th pixel. 1 gives the densest cloud.</p>
+        </div>
+        <div>
+          <label for="maxd">Max depth <span id="maxdV">60 m</span></label>
+          <input type="range" id="maxd" min="5" max="80" value="60">
+          <p class="hint">Cuts away the sky and far noise. Try about 35 m if the sky shows up as a ceiling.</p>
+        </div>
+        <div>
+          <label for="fov">Camera field of view <span id="fovV">65°</span></label>
+          <input type="range" id="fov" min="30" max="110" value="65">
+          <p class="hint">Phones are about 65°. Adjust it if the street looks stretched or squashed.</p>
+        </div>
+      </div>
+
+      <button class="primary" id="ply" disabled>Download .ply for Rhino</button>
+    </div>
+
+    <div class="viewer" id="viewer">
+      <canvas id="three"></canvas>
+      <div class="empty" id="empty">Your point cloud will appear here.<br>Drag to orbit · scroll to zoom · right-drag to pan</div>
+      <div class="views" id="views" hidden>
+        <button data-view="camera">Camera view</button>
+        <button data-view="orbit">Orbit</button>
+        <button data-view="top">Plan (top)</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+
+  <div class="about">
+    <div class="panel"><h3>1 · Depth from one photo</h3><p>Depth Anything V2 (Metric-Outdoor-Small) estimates how far every pixel is, in metres. It's a 25M-parameter vision transformer running here through ONNX Runtime Web.</p></div>
+    <div class="panel"><h3>2 · Pixels to 3D</h3><p>A pinhole camera model lifts each pixel into space: <code>x = (u − W/2)·z/f</code>, with <code>f = (W/2)/tan(FOV/2)</code>.</p></div>
+    <div class="panel"><h3>3 · Into Rhino</h3><p>The .ply is in metres and Z-up. In Rhino choose File → Import. It's a shell, because the camera only saw the fronts of things.</p></div>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
